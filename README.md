@@ -2,6 +2,8 @@
 
 Interface **React + TypeScript + Vite** com **TailwindCSS** e componentes no estilo **shadcn/ui** (Radix + CVA), consumindo a API do repositório `FlowCred-Back`.
 
+**Documentação unificada** (comportamento, regras de negócio, APIs e tutoriais): [../DOCUMENTACAO-FlowCred.md](../DOCUMENTACAO-FlowCred.md)
+
 ## Stack
 
 - React 19, React Router 7  
