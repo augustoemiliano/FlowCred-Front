@@ -19,9 +19,9 @@ npm install
 npm run dev
 ```
 
-Por padrão, `VITE_API_URL=/api/v1` e o **Vite proxy** encaminha `/api` para `http://localhost:8000` (ajuste `VITE_PROXY_TARGET` se necessário).
+Use `cp .env.example .env`: o proxy do Vite aponta para **`http://localhost:8001`**, alinhado ao `docker-compose` do backend (`8001:8000`). Se rodar a API com `uvicorn` na máquina na **8000**, altere `VITE_PROXY_TARGET` no `.env` do front.
 
-Suba o backend na porta 8000 antes de usar o app.
+**Teste rápido após clonar:** suba o backend (Docker ou uvicorn), depois `npm run dev`. Login: **`admin` / `admin`**. Deve existir pelo menos um cliente e uma proposta demo se o backend tiver `SEED_DEV_DATA=1` (padrão no `.env.example` e no Compose).
 
 ## Build
 

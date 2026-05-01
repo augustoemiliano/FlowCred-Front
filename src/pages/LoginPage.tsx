@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isAxiosError } from "axios";
+
 import { useAuth } from "@/context/AuthContext";
 
 const schema = z.object({
-  email: z.string().email("E-mail inválido"),
+  username: z.string().trim().min(1, "Informe o utilizador").max(64),
   password: z.string().min(1, "Informe a senha"),
 });
 
@@ -19,7 +21,10 @@ type Form = z.infer<typeof schema>;
 export function LoginPage() {
   const { login, token, loading } = useAuth();
   const nav = useNavigate();
-  const form = useForm<Form>({ resolver: zodResolver(schema), defaultValues: { email: "", password: "" } });
+  const form = useForm<Form>({
+    resolver: zodResolver(schema),
+    defaultValues: { username: "", password: "" },
+  });
 
   if (!loading && token) {
     return <Navigate to="/" replace />;
@@ -27,9 +32,23 @@ export function LoginPage() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await login(values.email, values.password);
+      await login(values.username.trim(), values.password);
       nav("/", { replace: true });
-    } catch {
+    } catch (err) {
+      if (isAxiosError(err) && err.response?.status === 422) {
+        const d = err.response.data as { detail?: unknown };
+        const msg =
+          typeof d?.detail === "string"
+            ? d.detail
+            : Array.isArray(d?.detail)
+              ? (d.detail as { msg?: string }[])
+                  .map((x) => x.msg)
+                  .filter(Boolean)
+                  .join(" · ") || "Verifique utilizador e senha."
+              : "Dados inválidos (422).";
+        form.setError("root", { message: String(msg) });
+        return;
+      }
       form.setError("root", { message: "Credenciais inválidas ou serviço indisponível." });
     }
   });
@@ -44,10 +63,16 @@ export function LoginPage() {
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" autoComplete="username" {...form.register("email")} />
-              {form.formState.errors.email && (
-                <p className="text-sm text-red-600">{form.formState.errors.email.message}</p>
+              <Label htmlFor="username">Utilizador</Label>
+              <Input
+                id="username"
+                type="text"
+                autoComplete="username"
+                placeholder="ex.: admin"
+                {...form.register("username")}
+              />
+              {form.formState.errors.username && (
+                <p className="text-sm text-red-600">{form.formState.errors.username.message}</p>
               )}
             </div>
             <div className="space-y-2">

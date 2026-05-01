@@ -49,7 +49,7 @@ export type Proposal = {
 
 export type ProposalDetail = Proposal & {
   client: { id: number; name: string; document: string };
-  responsible: { id: number; email: string };
+  responsible: { id: number; username: string };
 };
 
 export type ChecklistItem = {
@@ -64,7 +64,7 @@ export type HistoryEntry = {
   id: number;
   proposal_id: number;
   user_id: number;
-  user_email: string | null;
+  user_username: string | null;
   action: string;
   old_status: string | null;
   new_status: string | null;

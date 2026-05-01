@@ -154,7 +154,7 @@ export function ProposalDetailPage() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Responsável</p>
-              <p className="font-medium">{p.responsible.email}</p>
+              <p className="font-medium">{p.responsible.username}</p>
             </div>
             <div className="sm:col-span-2">
               <p className="text-xs text-muted-foreground">Próxima etapa</p>
@@ -218,7 +218,7 @@ export function ProposalDetailPage() {
                   <p className="text-sm font-medium">{h.action}</p>
                   <p className="text-xs text-muted-foreground">{formatDate(h.created_at)}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">{h.user_email ?? `user #${h.user_id}`}</p>
+                <p className="text-xs text-muted-foreground">{h.user_username ?? `user #${h.user_id}`}</p>
                 {(h.old_status || h.new_status) && (
                   <p className="mt-1 text-xs">
                     {h.old_status ? proposalStatusLabel(h.old_status) : "—"} →{" "}

@@ -17,13 +17,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, messageFromAxios422 } from "@/lib/api";
 import { formatBRL, formatDate } from "@/lib/format";
 import type { Client } from "@/types/domain";
 
+function documentDigitsLen(s: string) {
+  return s.replace(/\D/g, "").length;
+}
+
 const clientSchema = z.object({
   name: z.string().min(1),
-  document: z.string().min(1),
+  document: z
+    .string()
+    .min(1)
+    .refine((v) => {
+      const n = documentDigitsLen(v);
+      return n === 11 || n === 14;
+    }, "CPF deve ter 11 dígitos ou CNPJ 14 dígitos (apenas números após normalização)"),
   phone: z.string().min(8),
   email: z.string().email(),
   monthly_income: z.string().optional().transform((s) => (s?.trim() ? s : undefined)),
@@ -124,7 +134,11 @@ export function ClientsPage() {
             <form
               className="space-y-3"
               onSubmit={form.handleSubmit(async (v) => {
-                await save.mutateAsync(v);
+                try {
+                  await save.mutateAsync(v);
+                } catch (e) {
+                  form.setError("root", { message: messageFromAxios422(e) });
+                }
               })}
             >
               <div className="space-y-1">
@@ -133,7 +147,10 @@ export function ClientsPage() {
               </div>
               <div className="space-y-1">
                 <Label>CPF/CNPJ</Label>
-                <Input {...form.register("document")} disabled={!!editing} />
+                <Input {...form.register("document")} disabled={!!editing} placeholder="11 dígitos (CPF) ou 14 (CNPJ)" />
+                {form.formState.errors.document && (
+                  <p className="text-sm text-red-600">{form.formState.errors.document.message}</p>
+                )}
               </div>
               <div className="space-y-1">
                 <Label>Telefone</Label>
@@ -151,7 +168,9 @@ export function ClientsPage() {
                 <Label>Observações</Label>
                 <Input {...form.register("notes")} />
               </div>
-              {save.error && <p className="text-sm text-red-600">Erro ao salvar. Verifique os dados.</p>}
+              {form.formState.errors.root && (
+                <p className="text-sm text-red-600">{form.formState.errors.root.message}</p>
+              )}
               <Button type="submit" disabled={save.isPending}>
                 Salvar
               </Button>

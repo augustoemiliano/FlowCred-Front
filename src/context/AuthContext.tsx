@@ -2,13 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { api } from "@/lib/api";
 
-type Me = { id: number; email: string; is_active: boolean; is_superuser: boolean; created_at: string };
+type Me = { id: number; username: string; is_active: boolean; is_superuser: boolean; created_at: string };
 
 type AuthContextValue = {
   token: string | null;
   me: Me | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -49,12 +49,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [token, loadMe]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { data } = await api.post<{ access_token: string; token_type: string }>("/auth/login", { email, password });
-    localStorage.setItem("fc_token", data.access_token);
-    setToken(data.access_token);
-    await loadMe();
-  }, [loadMe]);
+  const login = useCallback(
+    async (username: string, password: string) => {
+      const { data } = await api.post<{ access_token: string; token_type: string }>("/auth/login", {
+        username,
+        password,
+      });
+      localStorage.setItem("fc_token", data.access_token);
+      setToken(data.access_token);
+      await loadMe();
+    },
+    [loadMe],
+  );
 
   const logout = useCallback(() => {
     localStorage.removeItem("fc_token");

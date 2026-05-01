@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api";
+import { api, messageFromAxios422 } from "@/lib/api";
 import { formatBRL, formatDate } from "@/lib/format";
 import type { Client, Proposal, ProposalStatus } from "@/types/domain";
 import { PROPOSAL_STATUS_OPTIONS, proposalStatusLabel } from "@/types/domain";
@@ -61,8 +61,9 @@ export function ProposalsPage() {
   const clients = useQuery({
     queryKey: ["clients-all"],
     queryFn: async () => (await api.get<{ items: Client[] }>("/clients?page=1&page_size=200")).data,
-    enabled: open,
   });
+
+  const hasClients = (clients.data?.items ?? []).length > 0;
 
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
@@ -115,8 +116,10 @@ export function ProposalsPage() {
         </div>
         <Button
           onClick={() => {
+            form.clearErrors("root");
+            const firstId = clients.data?.items?.[0]?.id ?? 1;
             form.reset({
-              client_id: 1,
+              client_id: firstId,
               bank: "",
               property_value: 0,
               financed_amount: 0,
@@ -199,7 +202,13 @@ export function ProposalsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) form.clearErrors("root");
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nova proposta</DialogTitle>
@@ -207,12 +216,30 @@ export function ProposalsPage() {
           <form
             className="space-y-3"
             onSubmit={form.handleSubmit(async (v) => {
-              await create.mutateAsync(v);
+              try {
+                await create.mutateAsync(v);
+              } catch (e) {
+                form.setError("root", { message: messageFromAxios422(e) });
+              }
             })}
           >
+            {!hasClients && (
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                Não há clientes cadastrados.{" "}
+                <Link className="font-medium underline" to="/clientes">
+                  Ir a Clientes
+                </Link>{" "}
+                e crie pelo menos um (CPF 11 ou CNPJ 14 dígitos). Com{" "}
+                <code className="rounded bg-muted px-1">SEED_DEV_DATA=1</code> o backend cria um cliente demo ao subir.
+              </p>
+            )}
             <div className="space-y-1">
               <Label>Cliente</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm" {...form.register("client_id", { valueAsNumber: true })}>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
+                disabled={!hasClients}
+                {...form.register("client_id", { valueAsNumber: true })}
+              >
                 {(clients.data?.items ?? []).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} — {c.document}
@@ -246,8 +273,10 @@ export function ProposalsPage() {
               <Label>Observações</Label>
               <Input {...form.register("notes")} />
             </div>
-            {create.error && <p className="text-sm text-red-600">Não foi possível criar. Verifique cliente e valores.</p>}
-            <Button type="submit" disabled={create.isPending}>
+            {form.formState.errors.root && (
+              <p className="text-sm text-red-600">{form.formState.errors.root.message}</p>
+            )}
+            <Button type="submit" disabled={create.isPending || !hasClients}>
               Criar
             </Button>
           </form>

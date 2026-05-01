@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 
 const baseURL = import.meta.env.VITE_API_URL || "/api/v1";
 
@@ -29,3 +29,20 @@ api.interceptors.response.use(
     return Promise.reject(err);
   },
 );
+
+/** Mensagem legível a partir de respostas 422 do FastAPI (campo `detail`). */
+export function messageFromAxios422(err: unknown): string {
+  if (!isAxiosError(err) || err.response?.status !== 422) {
+    return "Erro ao salvar. Verifique os dados.";
+  }
+  const data = err.response.data as { detail?: unknown };
+  const d = data?.detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    const parts = (d as { msg?: string; loc?: unknown[] }[])
+      .map((x) => x.msg)
+      .filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+  }
+  return "Dados inválidos.";
+}

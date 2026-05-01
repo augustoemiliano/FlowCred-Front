@@ -37,7 +37,7 @@ export function AppLayout() {
         </nav>
         <div className="mt-auto space-y-2 p-3">
           <Separator />
-          <p className="truncate px-2 text-xs text-muted-foreground">{me?.email}</p>
+          <p className="truncate px-2 text-xs text-muted-foreground">{me?.username}</p>
           <Button variant="outline" className="w-full justify-start gap-2" onClick={logout}>
             <LogOut className="h-4 w-4" />
             Sair
