@@ -59,8 +59,10 @@ export function ProposalsPage() {
   });
 
   const clients = useQuery({
-    queryKey: ["clients-all"],
-    queryFn: async () => (await api.get<{ items: Client[] }>("/clients?page=1&page_size=200")).data,
+    // Prefix ["clients"] so ClientsPage mutations invalidate this list too.
+    // API caps page_size at 100 (FlowCred-Back list_clients); higher values return 422.
+    queryKey: ["clients", "all-for-select", { page: 1, page_size: 100 }],
+    queryFn: async () => (await api.get<{ items: Client[] }>("/clients?page=1&page_size=100")).data,
   });
 
   const hasClients = (clients.data?.items ?? []).length > 0;
