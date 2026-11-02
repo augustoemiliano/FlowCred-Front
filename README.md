@@ -80,7 +80,7 @@ São credenciais apenas de desenvolvimento. A dica de login na tela aparece no m
 | `npm run preview` | Serve o build localmente (porta 4173) |
 | `npm run typecheck` | Verificação de tipos (`tsc`) |
 | `npm run lint` | ESLint |
-| `npm test` | Testes (Vitest) — 24 testes |
+| `npm test` | Testes (Vitest) — 26 testes |
 
 O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda lint, typecheck, testes e build, e depois faz o build da imagem Docker com um smoke test do nginx.
 
