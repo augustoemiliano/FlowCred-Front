@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Lint, typecheck, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Build da imagem Docker
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -t flowcred-front:ci .
+
+      - name: Smoke test (nginx serve o SPA)
+        run: |
+          docker run -d --name front -p 8080:80 flowcred-front:ci
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:8080/propostas | grep -q '<div id="root">'; then exit 0; fi
+            sleep 1
+          done
+          docker logs front
+          exit 1
