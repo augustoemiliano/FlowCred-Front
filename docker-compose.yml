@@ -1,0 +1,16 @@
+# Frontend em produção (build estático + nginx).
+# Pré-requisito: backend a correr (ex.: `docker compose up -d` no FlowCred-Back, porta 8001 no host).
+services:
+  frontend:
+    build:
+      context: .
+    container_name: flowcred_frontend
+    environment:
+      # Backend visto de dentro do container. Ajuste se a API estiver noutro host/porta.
+      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:8001}
+    extra_hosts:
+      # Necessário no Linux para resolver host.docker.internal.
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:80"
+    restart: unless-stopped
