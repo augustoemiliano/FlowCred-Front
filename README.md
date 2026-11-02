@@ -28,9 +28,15 @@ O [`render.yaml`](https://github.com/augustoemiliano/FlowCred-Back/blob/main/ren
 
 ## Screenshots
 
-> _Espaço reservado para capturas de tela (login, dashboard, clientes, propostas, detalhe da proposta)._
->
-> <!-- Exemplo: ![Dashboard](docs/screenshots/dashboard.png) -->
+![Dashboard com indicadores e gráfico por etapa](docs/screenshots/dashboard.png)
+
+| Propostas | Detalhe da proposta |
+|---|---|
+| ![Lista de propostas com filtros](docs/screenshots/propostas.png) | ![Detalhe com checklist, documentos e histórico](docs/screenshots/detalhe-proposta.png) |
+
+| Clientes | Login | Celular |
+|---|---|---|
+| ![Clientes](docs/screenshots/clientes.png) | ![Login](docs/screenshots/login.png) | <img src="docs/screenshots/mobile.png" alt="Dashboard no celular" width="200"> |
 
 ## Stack
 
