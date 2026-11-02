@@ -47,10 +47,32 @@ export type Proposal = {
   created_at: string;
 };
 
+export type UserMinimal = { id: number; username: string };
+
 export type ProposalDetail = Proposal & {
   client: { id: number; name: string; document: string };
-  responsible: { id: number; username: string };
+  responsible: UserMinimal;
 };
+
+export type Paginated<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export const HISTORY_ACTION_LABELS: Record<string, string> = {
+  CREATED: "Proposta criada",
+  UPDATED: "Dados atualizados",
+  STATUS_CHANGED: "Mudança de etapa",
+  CHECKLIST_UPDATED: "Checklist atualizado",
+  DOCUMENT_ADDED: "Documento anexado",
+  DOCUMENT_REMOVED: "Documento removido",
+};
+
+export function historyActionLabel(action: string) {
+  return HISTORY_ACTION_LABELS[action] ?? action;
+}
 
 export type ChecklistItem = {
   id: number;

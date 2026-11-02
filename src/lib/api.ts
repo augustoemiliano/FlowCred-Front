@@ -1,5 +1,7 @@
 import axios, { isAxiosError } from "axios";
 
+import { clearToken, getToken } from "@/lib/token";
+
 const baseURL = import.meta.env.VITE_API_URL || "/api/v1";
 
 export const api = axios.create({
@@ -7,10 +9,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  if (config.data && typeof config.data === "object" && !(config.data instanceof FormData)) {
-    config.headers["Content-Type"] = "application/json";
-  }
-  const token = localStorage.getItem("fc_token");
+  const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -20,8 +19,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (r) => r,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem("fc_token");
+    // Token expirado/inválido: limpa a sessão e volta ao login (exceto na própria chamada de login).
+    const url = String(err.config?.url ?? "");
+    if (err.response?.status === 401 && !url.includes("/auth/login")) {
+      clearToken();
       if (!window.location.pathname.startsWith("/login")) {
         window.location.href = "/login";
       }
@@ -30,19 +31,22 @@ api.interceptors.response.use(
   },
 );
 
-/** Mensagem legível a partir de respostas 422 do FastAPI (campo `detail`). */
-export function messageFromAxios422(err: unknown): string {
-  if (!isAxiosError(err) || err.response?.status !== 422) {
-    return "Erro ao salvar. Verifique os dados.";
-  }
-  const data = err.response.data as { detail?: unknown };
+/**
+ * Mensagem legível a partir de um erro da API FastAPI.
+ * - `detail` string (404, 409, 413, 415…) é devolvido tal como vem;
+ * - `detail` lista (422 de validação) junta as mensagens.
+ */
+export function apiErrorMessage(err: unknown, fallback = "Erro ao salvar. Verifique os dados."): string {
+  if (!isAxiosError(err)) return fallback;
+  if (!err.response) return "Não foi possível conectar à API. Verifique se o backend está rodando.";
+  const data = err.response.data as { detail?: unknown } | undefined;
   const d = data?.detail;
-  if (typeof d === "string") return d;
+  if (typeof d === "string" && d.trim()) return d;
   if (Array.isArray(d)) {
-    const parts = (d as { msg?: string; loc?: unknown[] }[])
-      .map((x) => x.msg)
+    const parts = (d as { msg?: string }[])
+      .map((x) => x.msg?.replace(/^Value error, /, ""))
       .filter(Boolean);
     if (parts.length) return parts.join(" · ");
   }
-  return "Dados inválidos.";
+  return fallback;
 }
