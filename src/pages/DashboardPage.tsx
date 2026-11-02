@@ -1,20 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { ProposalsTable } from "@/components/ProposalsTable";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { formatBRL, formatDate } from "@/lib/format";
-import type { DashboardSummary, Proposal } from "@/types/domain";
-import { proposalStatusLabel } from "@/types/domain";
+import { formatBRL } from "@/lib/format";
+import type { DashboardSummary, Paginated, ProposalDetail } from "@/types/domain";
+import { PROPOSAL_STATUS_OPTIONS } from "@/types/domain";
 import { Link } from "react-router-dom";
 
 export function DashboardPage() {
@@ -24,16 +17,14 @@ export function DashboardPage() {
   });
 
   const recent = useQuery({
-    queryKey: ["proposals-recent"],
-    queryFn: async () => (await api.get<{ items: Proposal[] }>("/proposals?page=1&page_size=8")).data,
+    queryKey: ["proposals", "recent"],
+    queryFn: async () => (await api.get<Paginated<ProposalDetail>>("/proposals?page=1&page_size=8")).data,
   });
 
   const chartData =
     summary.data &&
-    Object.entries(summary.data.proposals_by_status).map(([status, count]) => ({
-      status: proposalStatusLabel(status),
-      count,
-    }));
+    // Todas as etapas, na ordem do fluxo (inclui as que têm 0 propostas).
+    PROPOSAL_STATUS_OPTIONS.map((o) => ({ status: o.label, count: summary.data.proposals_by_status[o.value] ?? 0 }));
 
   return (
     <div className="space-y-8">
@@ -129,41 +120,7 @@ export function DashboardPage() {
           </Link>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Banco</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Financiado</TableHead>
-                <TableHead>Criada</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(recent.data?.items ?? []).map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell>
-                    <Link className="font-medium text-primary hover:underline" to={`/propostas/${p.id}`}>
-                      #{p.id}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{p.bank}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{proposalStatusLabel(String(p.status))}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">{formatBRL(p.financed_amount)}</TableCell>
-                  <TableCell>{formatDate(p.created_at)}</TableCell>
-                </TableRow>
-              ))}
-              {recent.data?.items.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                    Nenhuma proposta ainda.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <ProposalsTable items={recent.data?.items} emptyMessage="Nenhuma proposta ainda." />
         </CardContent>
       </Card>
     </div>
