@@ -47,7 +47,8 @@ jobs:
 
       - name: Smoke test (nginx serve o SPA)
         run: |
-          docker run -d --name front -p 8080:80 flowcred-front:ci
+          # No Linux, host.docker.internal só existe com --add-host (o compose já faz isso via extra_hosts).
+          docker run -d --name front -p 8080:80 --add-host host.docker.internal:host-gateway flowcred-front:ci
           for i in $(seq 1 15); do
             if curl -fsS http://localhost:8080/propostas | grep -q '<div id="root">'; then exit 0; fi
             sleep 1
