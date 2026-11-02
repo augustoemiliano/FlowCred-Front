@@ -1,6 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { api } from "@/lib/api";
+import { clearToken, getToken, setToken as persistToken } from "@/lib/token";
 
 type Me = { id: number; username: string; is_active: boolean; is_superuser: boolean; created_at: string };
 
@@ -15,63 +17,56 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("fc_token"));
+  const queryClient = useQueryClient();
+  const [token, setToken] = useState<string | null>(() => getToken());
   const [me, setMe] = useState<Me | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadMe = useCallback(async () => {
-    const { data } = await api.get<Me>("/auth/me");
-    setMe(data);
-  }, []);
+  const [loading, setLoading] = useState(() => getToken() !== null);
 
   useEffect(() => {
+    if (!token) {
+      setMe(null);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
-    (async () => {
-      if (!token) {
-        setMe(null);
-        setLoading(false);
-        return;
-      }
-      try {
-        await loadMe();
-      } catch {
+    setLoading(true);
+    api
+      .get<Me>("/auth/me")
+      .then(({ data }) => {
+        if (!cancelled) setMe(data);
+      })
+      .catch(() => {
         if (!cancelled) {
-          localStorage.removeItem("fc_token");
+          clearToken();
           setToken(null);
           setMe(null);
         }
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
-  }, [token, loadMe]);
+  }, [token]);
 
-  const login = useCallback(
-    async (username: string, password: string) => {
-      const { data } = await api.post<{ access_token: string; token_type: string }>("/auth/login", {
-        username,
-        password,
-      });
-      localStorage.setItem("fc_token", data.access_token);
-      setToken(data.access_token);
-      await loadMe();
-    },
-    [loadMe],
-  );
-
-  const logout = useCallback(() => {
-    localStorage.removeItem("fc_token");
-    setToken(null);
-    setMe(null);
+  const login = useCallback(async (username: string, password: string) => {
+    const { data } = await api.post<{ access_token: string; token_type: string }>("/auth/login", {
+      username,
+      password,
+    });
+    persistToken(data.access_token);
+    setToken(data.access_token);
   }, []);
 
-  const value = useMemo(
-    () => ({ token, me, loading, login, logout }),
-    [token, me, loading, login, logout],
-  );
+  const logout = useCallback(() => {
+    clearToken();
+    setToken(null);
+    setMe(null);
+    queryClient.clear();
+  }, [queryClient]);
+
+  const value = useMemo(() => ({ token, me, loading, login, logout }), [token, me, loading, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

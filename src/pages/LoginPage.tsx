@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { isAxiosError } from "axios";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -7,16 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { isAxiosError } from "axios";
-
 import { useAuth } from "@/context/AuthContext";
+import { apiErrorMessage } from "@/lib/api";
 
 const schema = z.object({
-  username: z.string().trim().min(1, "Informe o utilizador").max(64),
+  username: z.string().trim().min(1, "Informe o usuário").max(64),
   password: z.string().min(1, "Informe a senha"),
 });
 
 type Form = z.infer<typeof schema>;
+
+const SHOW_DEMO_HINT = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_LOGIN === "true";
 
 export function LoginPage() {
   const { login, token, loading } = useAuth();
@@ -32,24 +34,14 @@ export function LoginPage() {
 
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await login(values.username.trim(), values.password);
+      await login(values.username, values.password);
       nav("/", { replace: true });
     } catch (err) {
-      if (isAxiosError(err) && err.response?.status === 422) {
-        const d = err.response.data as { detail?: unknown };
-        const msg =
-          typeof d?.detail === "string"
-            ? d.detail
-            : Array.isArray(d?.detail)
-              ? (d.detail as { msg?: string }[])
-                  .map((x) => x.msg)
-                  .filter(Boolean)
-                  .join(" · ") || "Verifique utilizador e senha."
-              : "Dados inválidos (422).";
-        form.setError("root", { message: String(msg) });
-        return;
-      }
-      form.setError("root", { message: "Credenciais inválidas ou serviço indisponível." });
+      const message =
+        isAxiosError(err) && err.response?.status === 401
+          ? "Usuário ou senha incorretos."
+          : apiErrorMessage(err, "Não foi possível entrar. Tente novamente.");
+      form.setError("root", { message });
     }
   });
 
@@ -61,16 +53,10 @@ export function LoginPage() {
           <CardDescription>FlowCred — gestão de propostas de crédito imobiliário</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+          <form className="space-y-4" onSubmit={onSubmit} noValidate>
             <div className="space-y-2">
-              <Label htmlFor="username">Utilizador</Label>
-              <Input
-                id="username"
-                type="text"
-                autoComplete="username"
-                placeholder="ex.: admin"
-                {...form.register("username")}
-              />
+              <Label htmlFor="username">Usuário</Label>
+              <Input id="username" type="text" autoComplete="username" placeholder="ex.: admin" {...form.register("username")} />
               {form.formState.errors.username && (
                 <p className="text-sm text-red-600">{form.formState.errors.username.message}</p>
               )}
@@ -83,11 +69,18 @@ export function LoginPage() {
               )}
             </div>
             {form.formState.errors.root && (
-              <p className="text-sm text-red-600">{form.formState.errors.root.message}</p>
+              <p role="alert" className="text-sm text-red-600">
+                {form.formState.errors.root.message}
+              </p>
             )}
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Entrando…" : "Entrar"}
             </Button>
+            {SHOW_DEMO_HINT && (
+              <p className="text-center text-xs text-muted-foreground">
+                Ambiente de demonstração: usuário <code>admin</code> / senha <code>admin</code>
+              </p>
+            )}
           </form>
         </CardContent>
       </Card>
