@@ -19,6 +19,9 @@ const schema = z.object({
 type Form = z.infer<typeof schema>;
 
 const SHOW_DEMO_HINT = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_LOGIN === "true";
+// Credenciais exibidas na dica (devem bater com INITIAL_ADMIN_* do backend).
+const DEMO_USERNAME = import.meta.env.VITE_DEMO_USERNAME || "admin";
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD || "admin";
 
 export function LoginPage() {
   const { login, token, loading } = useAuth();
@@ -78,7 +81,7 @@ export function LoginPage() {
             </Button>
             {SHOW_DEMO_HINT && (
               <p className="text-center text-xs text-muted-foreground">
-                Ambiente de demonstração: usuário <code>admin</code> / senha <code>admin</code>
+                Ambiente de demonstração: usuário <code>{DEMO_USERNAME}</code> / senha <code>{DEMO_PASSWORD}</code>
               </p>
             )}
           </form>

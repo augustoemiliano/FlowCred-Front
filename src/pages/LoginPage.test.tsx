@@ -38,6 +38,11 @@ describe("LoginPage", () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it("mostra a dica de credenciais demo (modo dev)", () => {
+    renderWithProviders(<LoginPage />, { route: "/login", path: "/login" });
+    expect(screen.getByText(/Ambiente de demonstração/)).toHaveTextContent("usuário admin / senha admin");
+  });
+
   it("mostra erro com credenciais inválidas", async () => {
     post.mockRejectedValueOnce(unauthorized());
     renderWithProviders(<LoginPage />, { route: "/login", path: "/login" });

@@ -6,6 +6,26 @@ Interface web do **FlowCred**, sistema de gestão de propostas de **crédito imo
 
 Consome a API do repositório [FlowCred-Back](https://github.com/augustoemiliano/FlowCred-Back) (FastAPI).
 
+## Demo online
+
+- **App:** https://flowcred-front.onrender.com (usuário `demo` / senha `demo`)
+
+> Link previsto pelo `render.yaml` do FlowCred-Back; fica ativo depois que o Blueprint for aplicado no Render.
+
+No Render o front é um **static site** (`npm ci && npm run build`, publica `dist/`, rewrite `/*` → `/index.html`). Ele chama a API diretamente em `https://flowcred-back.onrender.com/api/v1` (`VITE_API_URL`), com CORS liberado no back para a origem do front e autenticação por header `Authorization: Bearer`.
+
+### Como publicar (dono do repositório)
+
+O [`render.yaml`](https://github.com/augustoemiliano/FlowCred-Back/blob/main/render.yaml) do FlowCred-Back é um *Blueprint* que cria **os dois serviços** (API e front) de uma vez:
+
+1. Crie uma conta em [render.com](https://render.com) com **Sign in with GitHub** e autorize o app do Render a acessar **os dois repositórios** (`FlowCred-Back` e `FlowCred-Front`).
+2. No dashboard: **New → Blueprint**.
+3. Escolha o repositório **FlowCred-Back** (branch `main`); o Render lê o `render.yaml` e lista `flowcred-back` (Docker, free) e `flowcred-front` (static site).
+4. Clique em **Apply** (nenhum cartão é necessário no plano free) e aguarde o primeiro deploy (~5 min).
+5. Abra https://flowcred-front.onrender.com e entre com `demo` / `demo`. Se o Render tiver atribuído outro subdomínio a algum serviço, ajuste `BACKEND_CORS_ORIGINS` (back) e `VITE_API_URL` (front) no dashboard e faça **Manual Deploy** do front.
+
+> **Plano free:** a API hiberna após ~15 min sem acesso, e o primeiro acesso depois disso demora **~1 min** (o front mostra erro de conexão até ela acordar; basta tentar de novo). Não há disco persistente: o banco SQLite e os uploads **voltam aos dados demo a cada deploy, reinício ou hibernação**. Para manter dados, o `render.yaml` traz comentada a opção de Postgres free do Render (expira após 30 dias).
+
 ## Screenshots
 
 > _Espaço reservado para capturas de tela (login, dashboard, clientes, propostas, detalhe da proposta)._
@@ -69,7 +89,7 @@ Acesse http://localhost:8080. Por padrão o nginx encaminha `/api` para `http://
 - **Usuário:** `admin` · **Senha:** `admin`
 - Com `SEED_DEV_DATA=1` no backend (padrão do `.env.example`), já existem 6 clientes e propostas em etapas diferentes para explorar o dashboard e o fluxo.
 
-São credenciais apenas de desenvolvimento. A dica de login na tela aparece no modo dev ou quando `VITE_SHOW_DEMO_LOGIN=true`.
+Na demo do Render as credenciais são `demo` / `demo`. São credenciais apenas de desenvolvimento/demonstração. A dica de login na tela aparece no modo dev ou quando `VITE_SHOW_DEMO_LOGIN=true`.
 
 ## Scripts
 
@@ -80,7 +100,7 @@ São credenciais apenas de desenvolvimento. A dica de login na tela aparece no m
 | `npm run preview` | Serve o build localmente (porta 4173) |
 | `npm run typecheck` | Verificação de tipos (`tsc`) |
 | `npm run lint` | ESLint |
-| `npm test` | Testes (Vitest) — 26 testes |
+| `npm test` | Testes (Vitest) — 27 testes |
 
 O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda lint, typecheck, testes e build, e depois faz o build da imagem Docker com um smoke test do nginx.
 
@@ -90,7 +110,8 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda lint, typ
 |----------|--------|-----------|
 | `VITE_API_URL` | `/api/v1` | Base da API usada pelo Axios (relativa = mesmo host, via proxy) |
 | `VITE_PROXY_TARGET` | `http://localhost:8001` | Destino do proxy `/api` do Vite (`dev` e `preview`) |
-| `VITE_SHOW_DEMO_LOGIN` | `false` | Mostra a dica `admin/admin` na tela de login fora do modo dev |
+| `VITE_SHOW_DEMO_LOGIN` | `false` | Mostra a dica de credenciais na tela de login fora do modo dev |
+| `VITE_DEMO_USERNAME`, `VITE_DEMO_PASSWORD` | `admin` / `admin` | Credenciais exibidas nessa dica (no Render: `demo` / `demo`) |
 | `API_UPSTREAM` (Docker) | `http://host.docker.internal:8001` | Backend para onde o nginx encaminha `/api` |
 
 ## Estrutura
