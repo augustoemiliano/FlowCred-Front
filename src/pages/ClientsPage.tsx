@@ -1,97 +1,73 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { Link } from "react-router-dom";
 
+import { FormField as Field } from "@/components/FormField";
+import { Pagination } from "@/components/Pagination";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { api, messageFromAxios422 } from "@/lib/api";
-import { formatBRL, formatDate } from "@/lib/format";
-import type { Client } from "@/types/domain";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { api, apiErrorMessage } from "@/lib/api";
+import { formatBRL, formatDate, formatDocument } from "@/lib/format";
+import { type ClientForm, clientSchema, EMPTY_CLIENT_FORM, toClientPayload } from "@/lib/schemas";
+import type { Client, Paginated } from "@/types/domain";
 
-function documentDigitsLen(s: string) {
-  return s.replace(/\D/g, "").length;
-}
-
-const clientSchema = z.object({
-  name: z.string().min(1),
-  document: z
-    .string()
-    .min(1)
-    .refine((v) => {
-      const n = documentDigitsLen(v);
-      return n === 11 || n === 14;
-    }, "CPF deve ter 11 dígitos ou CNPJ 14 dígitos (apenas números após normalização)"),
-  phone: z.string().min(8),
-  email: z.string().email(),
-  monthly_income: z.string().optional().transform((s) => (s?.trim() ? s : undefined)),
-  notes: z.string().optional(),
-});
-
-type ClientForm = z.infer<typeof clientSchema>;
+const PAGE_SIZE = 20;
 
 export function ClientsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 350);
+    const t = setTimeout(() => {
+      setDebounced(search.trim());
+      setPage(1);
+    }, 350);
     return () => clearTimeout(t);
   }, [search]);
 
   const list = useQuery({
-    queryKey: ["clients", debounced],
+    queryKey: ["clients", { search: debounced, page }],
     queryFn: async () => {
-      const params = new URLSearchParams({ page: "1", page_size: "50" });
+      const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (debounced) params.set("search", debounced);
-      return (await api.get<{ items: Client[] }>(`/clients?${params}`)).data;
+      return (await api.get<Paginated<Client>>(`/clients?${params}`)).data;
     },
+    placeholderData: keepPreviousData,
   });
 
-  const form = useForm<ClientForm>({ resolver: zodResolver(clientSchema) });
+  const form = useForm<ClientForm>({ resolver: zodResolver(clientSchema), defaultValues: EMPTY_CLIENT_FORM });
 
-  useEffect(() => {
-    if (editing) {
-      form.reset({
-        name: editing.name,
-        document: editing.document,
-        phone: editing.phone,
-        email: editing.email,
-        monthly_income: editing.monthly_income ?? "",
-        notes: editing.notes ?? "",
-      });
-    } else {
-      form.reset({ name: "", document: "", phone: "", email: "", monthly_income: "", notes: "" });
-    }
-  }, [editing, form, open]);
+  const openForm = (client: Client | null) => {
+    setEditing(client);
+    form.reset(
+      client
+        ? {
+            name: client.name,
+            document: client.document,
+            phone: client.phone,
+            email: client.email,
+            monthly_income: client.monthly_income ?? "",
+            notes: client.notes ?? "",
+          }
+        : EMPTY_CLIENT_FORM,
+    );
+    setOpen(true);
+  };
 
   const save = useMutation({
     mutationFn: async (values: ClientForm) => {
-      const payload = {
-        name: values.name,
-        document: values.document,
-        phone: values.phone,
-        email: values.email,
-        notes: values.notes?.trim() ? values.notes : null,
-        monthly_income: values.monthly_income?.trim()
-          ? Number(String(values.monthly_income).replace(",", "."))
-          : null,
-      };
+      const payload = toClientPayload(values);
       if (editing) {
         await api.put(`/clients/${editing.id}`, payload);
       } else {
@@ -105,6 +81,20 @@ export function ClientsPage() {
     },
   });
 
+  const remove = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/clients/${id}`);
+    },
+    onSuccess: async () => {
+      setListError(null);
+      await qc.invalidateQueries({ queryKey: ["clients"] });
+    },
+    onError: (e) => setListError(apiErrorMessage(e, "Não foi possível excluir o cliente.")),
+  });
+
+  const errors = form.formState.errors;
+  const data = list.data;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -112,117 +102,142 @@ export function ClientsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
           <p className="text-sm text-muted-foreground">Cadastro e busca rápida</p>
         </div>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) setEditing(null);
-          }}
-        >
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            Novo cliente
-          </Button>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar cliente" : "Novo cliente"}</DialogTitle>
-            </DialogHeader>
-            <form
-              className="space-y-3"
-              onSubmit={form.handleSubmit(async (v) => {
-                try {
-                  await save.mutateAsync(v);
-                } catch (e) {
-                  form.setError("root", { message: messageFromAxios422(e) });
-                }
-              })}
-            >
-              <div className="space-y-1">
-                <Label>Nome</Label>
-                <Input {...form.register("name")} />
-              </div>
-              <div className="space-y-1">
-                <Label>CPF/CNPJ</Label>
-                <Input {...form.register("document")} disabled={!!editing} placeholder="11 dígitos (CPF) ou 14 (CNPJ)" />
-                {form.formState.errors.document && (
-                  <p className="text-sm text-red-600">{form.formState.errors.document.message}</p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label>Telefone</Label>
-                <Input {...form.register("phone")} />
-              </div>
-              <div className="space-y-1">
-                <Label>E-mail</Label>
-                <Input type="email" {...form.register("email")} />
-              </div>
-              <div className="space-y-1">
-                <Label>Renda mensal (opcional)</Label>
-                <Input placeholder="ex: 8500.50" {...form.register("monthly_income")} />
-              </div>
-              <div className="space-y-1">
-                <Label>Observações</Label>
-                <Input {...form.register("notes")} />
-              </div>
-              {form.formState.errors.root && (
-                <p className="text-sm text-red-600">{form.formState.errors.root.message}</p>
-              )}
-              <Button type="submit" disabled={save.isPending}>
-                Salvar
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => openForm(null)}>Novo cliente</Button>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Lista</CardTitle>
-          <CardDescription>Busque por nome, e-mail ou documento</CardDescription>
+          <CardDescription>Busque por nome, e-mail ou CPF/CNPJ</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Documento</TableHead>
-                <TableHead>E-mail</TableHead>
-                <TableHead>Renda</TableHead>
-                <TableHead>Criado</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(list.data?.items ?? []).map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>{c.document}</TableCell>
-                  <TableCell>{c.email}</TableCell>
-                  <TableCell>{c.monthly_income ? formatBRL(c.monthly_income) : "—"}</TableCell>
-                  <TableCell>{formatDate(c.created_at)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditing(c);
-                        setOpen(true);
-                      }}
-                    >
-                      Editar
-                    </Button>
-                  </TableCell>
+          <Input
+            aria-label="Buscar clientes"
+            placeholder="Buscar…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {listError && (
+            <p role="alert" className="text-sm text-red-600">
+              {listError}
+            </p>
+          )}
+          {list.error && <p className="text-sm text-red-600">{apiErrorMessage(list.error, "Erro ao carregar clientes.")}</p>}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>CPF/CNPJ</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Telefone</TableHead>
+                  <TableHead>Renda</TableHead>
+                  <TableHead>Criado</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {(data?.items ?? []).map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDocument(c.document)}</TableCell>
+                    <TableCell>{c.email}</TableCell>
+                    <TableCell className="whitespace-nowrap">{c.phone}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatBRL(c.monthly_income)}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDate(c.created_at)}</TableCell>
+                    <TableCell className="space-x-2 whitespace-nowrap text-right">
+                      <Button size="sm" variant="ghost" asChild>
+                        <Link to={`/propostas?client_id=${c.id}`}>Propostas</Link>
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => openForm(c)}>
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600"
+                        disabled={remove.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Excluir o cliente "${c.name}"?`)) remove.mutate(c.id);
+                        }}
+                      >
+                        Excluir
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {data && data.items.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                      {debounced ? "Nenhum cliente encontrado para esta busca." : "Nenhum cliente cadastrado."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          {data && <Pagination page={page} pageSize={PAGE_SIZE} total={data.total} onPageChange={setPage} />}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) setEditing(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Editar cliente" : "Novo cliente"}</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-3"
+            noValidate
+            onSubmit={form.handleSubmit(async (v) => {
+              try {
+                await save.mutateAsync(v);
+              } catch (e) {
+                form.setError("root", { message: apiErrorMessage(e) });
+              }
+            })}
+          >
+            <Field label="Nome" htmlFor="c-name" error={errors.name?.message}>
+              <Input id="c-name" {...form.register("name")} />
+            </Field>
+            <Field label="CPF/CNPJ" htmlFor="c-document" error={errors.document?.message}>
+              <Input
+                id="c-document"
+                {...form.register("document")}
+                readOnly={!!editing}
+                className={editing ? "bg-muted" : undefined}
+                placeholder="11 dígitos (CPF) ou 14 (CNPJ)"
+              />
+            </Field>
+            <Field label="Telefone" htmlFor="c-phone" error={errors.phone?.message}>
+              <Input id="c-phone" {...form.register("phone")} />
+            </Field>
+            <Field label="E-mail" htmlFor="c-email" error={errors.email?.message}>
+              <Input id="c-email" type="email" {...form.register("email")} />
+            </Field>
+            <Field label="Renda mensal (opcional)" htmlFor="c-income" error={errors.monthly_income?.message}>
+              <Input id="c-income" inputMode="decimal" placeholder="ex: 8500,50" {...form.register("monthly_income")} />
+            </Field>
+            <Field label="Observações" htmlFor="c-notes">
+              <Textarea id="c-notes" {...form.register("notes")} />
+            </Field>
+            {errors.root && (
+              <p role="alert" className="text-sm text-red-600">
+                {errors.root.message}
+              </p>
+            )}
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Salvando…" : "Salvar"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
